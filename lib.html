@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IoT Galaxy · Information System</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+        --void: #030305;
+        --glass: rgba(255, 255, 255, 0.03);
+        --glass-border: rgba(255, 255, 255, 0.06);
+        --text-primary: #f0f0f5;
+        --text-secondary: #888899;
+        --accent: #64ffda;
+        --accent-dim: rgba(100, 255, 218, 0.1);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--void);
+        color: var(--text-primary);
+        overflow-x: hidden;
+        line-height: 1.6;
+        min-height: 100vh;
+    }
+    h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; font-weight: 500; letter-spacing: -0.03em; }
+    
+    #canvas-container {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: -1; pointer-events: none;
+    }
+    
+    .noise {
+        position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.04;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .header {
+        position: fixed; top: 0; left: 0; width: 100%; z-index: 100;
+        padding: 40px 6vw;
+        display: flex; justify-content: space-between; align-items: flex-start;
+        pointer-events: none;
+    }
+    .header > * { pointer-events: auto; }
+    
+    .brand { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+    .brand-mark {
+        width: 8px; height: 8px; background: var(--accent);
+        box-shadow: 0 0 15px var(--accent); margin-bottom: 8px;
+    }
+    .brand-text .l1 { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 1.2rem; color: var(--text-primary); letter-spacing: 0.05em; }
+    .brand-text .l2 { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text-secondary); letter-spacing: 0.15em; }
+    
+    .nav-menu { display: flex; flex-direction: column; gap: 12px; align-items: flex-end; }
+    .nav-menu a {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 400;
+        text-decoration: none; color: var(--text-secondary); letter-spacing: 0.1em;
+        transition: 0.3s; cursor: pointer; position: relative; padding-right: 20px;
+    }
+    .nav-menu a::before {
+        content: ''; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+        width: 0; height: 1px; background: var(--accent); transition: 0.3s;
+    }
+    .nav-menu a:hover, .nav-menu a.active { color: var(--accent); }
+    .nav-menu a:hover::before, .nav-menu a.active::before { width: 12px; }
+
+    section { position: relative; z-index: 1; padding: 180px 6vw 100px; max-width: 1600px; }
+    
+    .reveal { opacity: 0; transform: translateY(30px); transition: all 1s cubic-bezier(0.16, 1, 0.3, 1); }
+    .reveal.active { opacity: 1; transform: translateY(0); }
+
+    .section-head {
+        display: grid; grid-template-columns: 1fr 200px; gap: 40px;
+        margin-bottom: 80px; align-items: start;
+    }
+    .marker {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 400;
+        letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent);
+        margin-bottom: 24px; display: flex; align-items: center; gap: 12px;
+    }
+    .marker::before { content: ''; width: 40px; height: 1px; background: var(--accent); }
+    
+    .section-title {
+        font-size: clamp(3rem, 6vw, 5.5rem); line-height: 0.95;
+        color: var(--text-primary); font-weight: 500; max-width: 800px;
+    }
+    .section-title span { color: var(--text-secondary); font-weight: 300; }
+    
+    .section-meta {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+        color: var(--text-secondary); line-height: 2; text-align: right;
+        border-left: 1px solid var(--glass-border); padding-left: 24px;
+    }
+    .section-meta .v { color: var(--text-primary); }
+
+    .section-desc {
+        color: var(--text-secondary); font-size: 1.1rem; line-height: 1.8;
+        max-width: 500px; margin-bottom: 60px; font-weight: 300;
+    }
+
+    .iot-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1px;
+        background: var(--glass-border); border: 1px solid var(--glass-border);
+    }
+
+    .iot-card {
+        background: var(--void); padding: 32px; cursor: pointer;
+        transition: background 0.4s ease; position: relative; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: space-between;
+        min-height: 320px;
+    }
+    .iot-card:hover { background: rgba(255, 255, 255, 0.02); }
+    
+    .iot-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+    .iot-num { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-secondary); }
+    .iot-tag { 
+        font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em;
+        color: var(--accent); border: 1px solid var(--accent-dim); padding: 4px 10px;
+    }
+    
+    .iot-name {
+        font-family: 'Space Grotesk', sans-serif; font-weight: 500;
+        font-size: 1.5rem; color: var(--text-primary); margin-bottom: 12px;
+    }
+    .iot-desc {
+        font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; font-weight: 300;
+    }
+    .iot-arrow {
+        position: absolute; bottom: 32px; right: 32px;
+        color: var(--text-secondary); transition: 0.3s;
+    }
+    .iot-card:hover .iot-arrow { color: var(--accent); transform: translate(4px, -4px); }
+
+    .detail-page { display: none; animation: fadeIn 0.8s ease; }
+    .detail-page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .back-btn {
+        display: inline-flex; align-items: center; gap: 12px;
+        font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em;
+        color: var(--text-secondary); padding: 12px 0; cursor: pointer;
+        transition: 0.3s; margin-bottom: 60px; text-decoration: none;
+    }
+    .back-btn:hover { color: var(--accent); gap: 16px; }
+
+    .detail-hero {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 60px;
+        margin-bottom: 60px; align-items: end;
+    }
+    .detail-hero-img {
+        aspect-ratio: 16/9; background: var(--glass); border: 1px solid var(--glass-border);
+        overflow: hidden; position: relative;
+    }
+    .detail-hero-img img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%) contrast(1.2); transition: 0.6s; }
+    .detail-hero-img:hover img { filter: grayscale(0%) contrast(1); }
+    
+    .detail-hero-info h1 {
+        font-size: clamp(2.5rem, 4vw, 4rem); line-height: 1; margin-bottom: 24px;
+    }
+    .detail-hero-info .marker { margin-bottom: 16px; }
+
+    .metrics-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+        background: var(--glass-border); border: 1px solid var(--glass-border);
+        margin-bottom: 60px;
+    }
+    .metric-card {
+        background: var(--void); padding: 24px;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .metric-label {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+        letter-spacing: 0.15em; color: var(--text-secondary); text-transform: uppercase;
+    }
+    .metric-value {
+        font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem;
+        font-weight: 500; color: var(--accent); line-height: 1;
+    }
+    .metric-bar {
+        height: 2px; background: var(--glass-border); margin-top: 8px;
+        position: relative; overflow: hidden;
+    }
+    .metric-bar::after {
+        content: ''; position: absolute; left: 0; top: 0; height: 100%;
+        background: var(--accent); width: var(--fill, 50%);
+        transition: width 1s ease;
+    }
+
+    .detail-content { display: grid; grid-template-columns: 2fr 1fr; gap: 80px; }
+    @media (max-width: 900px) { .detail-content, .detail-hero, .section-head { grid-template-columns: 1fr; } .section-meta { text-align: left; border-left: none; padding-left: 0; border-top: 1px solid var(--glass-border); padding-top: 24px; } .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .detail-section { margin-bottom: 48px; }
+    .detail-label {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; letter-spacing: 0.15em;
+        text-transform: uppercase; color: var(--text-secondary); margin-bottom: 16px;
+        padding-bottom: 16px; border-bottom: 1px solid var(--glass-border);
+    }
+    .detail-text { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.8; font-weight: 300; }
+
+    .comp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--glass-border); border: 1px solid var(--glass-border); }
+    .comp-item {
+        background: var(--void); padding: 16px;
+        font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-primary);
+        display: flex; align-items: center; gap: 12px;
+    }
+    .comp-item i { color: var(--accent); font-size: 0.6rem; }
+
+    .result-box {
+        border-left: 2px solid var(--accent); padding-left: 24px;
+        color: var(--text-primary); font-size: 1rem; line-height: 1.7; font-weight: 400;
+    }
+
+    .spec-list { list-style: none; }
+    .spec-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 16px 0; border-bottom: 1px solid var(--glass-border);
+        font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    }
+    .spec-key { color: var(--text-secondary); }
+    .spec-val { color: var(--text-primary); text-align: right; }
+
+    .related-section { margin-top: 80px; }
+    .related-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 1px; background: var(--glass-border); border: 1px solid var(--glass-border);
+    }
+    .related-card {
+        background: var(--void); padding: 24px; cursor: pointer;
+        transition: 0.3s; position: relative;
+    }
+    .related-card:hover { background: rgba(255, 255, 255, 0.02); }
+    .related-card .iot-num { margin-bottom: 12px; }
+    .related-card .iot-name { font-size: 1.1rem; margin-bottom: 8px; }
+    .related-card .iot-tag { font-size: 0.55rem; padding: 3px 8px; }
+    .related-card .iot-arrow { bottom: 24px; right: 24px; font-size: 0.8rem; }
+
+    footer {
+        border-top: 1px solid var(--glass-border); padding: 60px 6vw;
+        position: relative; z-index: 1; margin-top: 100px;
+        display: flex; justify-content: space-between; align-items: flex-end;
+        font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-secondary); letter-spacing: 0.05em;
+    }
+
+    .terminal-fab {
+        position: fixed; bottom: 40px; right: 40px; width: 56px; height: 56px;
+        background: var(--void); border: 1px solid var(--glass-border);
+        color: var(--text-primary); display: flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; cursor: pointer; z-index: 2000; transition: 0.3s;
+    }
+    .terminal-fab:hover { border-color: var(--accent); color: var(--accent); }
+    
+    .terminal-window {
+        position: fixed; bottom: 110px; right: 40px; width: 420px; max-height: 500px;
+        background: rgba(5, 5, 8, 0.95); backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border); z-index: 2000;
+        display: flex; flex-direction: column;
+        transform: translateY(20px); opacity: 0; pointer-events: none;
+        transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .terminal-window.active { transform: translateY(0); opacity: 1; pointer-events: all; }
+    
+    .terminal-header {
+        padding: 16px 20px; border-bottom: 1px solid var(--glass-border);
+        display: flex; justify-content: space-between; align-items: center;
+        font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text-secondary);
+    }
+    .terminal-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1rem; transition: 0.3s; }
+    .terminal-close:hover { color: var(--text-primary); }
+    
+    .terminal-messages {
+        flex: 1; overflow-y: auto; padding: 20px; display: flex;
+        flex-direction: column; gap: 16px; min-height: 250px;
+    }
+    .terminal-messages::-webkit-scrollbar { width: 4px; }
+    .terminal-messages::-webkit-scrollbar-thumb { background: var(--glass-border); }
+    
+    .t-msg {
+        font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+        line-height: 1.6; color: var(--text-secondary);
+    }
+    .t-msg.user { color: var(--text-primary); }
+    .t-msg.user::before { content: '> '; color: var(--accent); }
+    .t-msg.sys::before { content: 'sys: '; color: var(--text-secondary); }
+    
+    .terminal-input-area {
+        padding: 16px 20px; border-top: 1px solid var(--glass-border);
+        display: flex; gap: 12px; align-items: center;
+    }
+    .terminal-input {
+        flex: 1; background: transparent; border: none; color: var(--text-primary);
+        font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; outline: none;
+    }
+    .terminal-input::placeholder { color: var(--glass-border); }
+    .terminal-send {
+        background: none; border: none; color: var(--accent); cursor: pointer;
+        font-size: 0.9rem; transition: 0.3s;
+    }
+    .terminal-send:hover { color: var(--text-primary); }
+    .terminal-send:disabled { opacity: 0.3; cursor: default; }
+
+    @media (max-width: 600px) {
+        .header { padding: 24px 5vw; }
+        section { padding: 140px 5vw 60px; }
+        .section-title { font-size: 2.5rem; }
+        .iot-grid { grid-template-columns: 1fr; }
+        .comp-grid { grid-template-columns: 1fr; }
+        .terminal-window { width: calc(100% - 40px); right: 20px; bottom: 100px; }
+        .terminal-fab { bottom: 24px; right: 24px; }
+        .metrics-grid { grid-template-columns: 1fr; }
+    }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div class="noise"></div>
+
+<header class="header">
+    <div class="brand" onclick="showList()">
+        <div class="brand-mark"></div>
+        <div class="brand-text">
+            <div class="l1">IoT GALAXY</div>
+            <div class="l2">INFORMATION SYSTEM 2026</div>
+        </div>
+    </div>
+    <nav class="nav-menu">
+        <a onclick="showList()" class="active">BERANDA</a>
+        <a onclick="showList()">KATALOG</a>
+    </nav>
+</header>
+
+<section id="list-page">
+    <div class="section-head reveal">
+        <div>
+            <div class="marker">01 DATABASE PERANGKAT</div>
+            <h2 class="section-title">KATALOG <span>ALAT IoT</span></h2>
+        </div>
+        <div class="section-meta">
+            <div>DEVICES <span class="v" id="device-count">00</span></div>
+            <div>STATUS <span class="v">ONLINE</span></div>
+            <div>LATENCY <span class="v">12ms</span></div>
+        </div>
+    </div>
+    <p class="section-desc reveal">
+        Koleksi perangkat Internet of Things yang dirancang untuk integrasi sistem. Setiap modul dioptimalkan untuk konektivitas nirkabel, efisiensi daya, dan skalabilitas arsitektur.
+    </p>
+
+    <div id="iot-grid" class="iot-grid"></div>
+</section>
+
+<section id="detail-page" class="detail-page">
+    <a class="back-btn" onclick="showList()">
+        <i class="fa-solid fa-arrow-left"></i> KEMBALI
+    </a>
+    <div id="detail-content"></div>
+</section>
+
+<footer>
+    <div>IoT GALAXY DIVISION</div>
+    <div>MISSION CONTROL 2026 &copy; ALL RIGHTS RESERVED</div>
+</footer>
+
+<button class="terminal-fab" onclick="toggleTerminal()" title="System Query">
+    <i class="fa-solid fa-terminal"></i>
+</button>
+
+<div class="terminal-window" id="terminal-window">
+    <div class="terminal-header">
+        <span>SYSTEM_QUERY_V2.4</span>
+        <button class="terminal-close" onclick="toggleTerminal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="terminal-messages" id="terminal-messages">
+        <div class="t-msg sys">Sistem siap. Ketik perintah atau pertanyaan mengenai perangkat IoT.</div>
+    </div>
+    <div class="terminal-input-area">
+        <span style="color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">></span>
+        <input type="text" class="terminal-input" id="terminal-input" placeholder="Masukkan query..." onkeypress="if(event.key==='Enter')sendQuery()">
+        <button class="terminal-send" id="terminal-send" onclick="sendQuery()">
+            <i class="fa-solid fa-arrow-right"></i>
+        </button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+    const iotData = [
+        { id: 1, name: "ESP32-CAM-MB", category: "CAMERA MODULE", thumb: "https://images.unsplash.com/photo-1558449028-b53a39d100fc?auto=format&fit=crop&q=80&w=800", shortDesc: "Modul kamera WiFi dengan ESP32 untuk streaming video dan face recognition.", description: "ESP32-CAM-MB adalah modul kamera kecil berbasis ESP32 yang dilengkapi dengan kamera OV2640. Modul ini mendukung WiFi dan Bluetooth, memungkinkan streaming video real-time, pengambilan foto, serta aplikasi computer vision seperti face recognition dan motion detection.", function: "Streaming video via WiFi, sistem keamanan rumah dengan deteksi gerak, face recognition untuk akses pintu, monitoring jarak jauh.", components: ["ESP32-S", "Kamera OV2640", "Slot MicroSD", "Flash LED", "Antena WiFi", "Port USB"], specs: { "Processor": "ESP32 240MHz", "RAM": "520KB", "Camera": "2MP OV2640", "Connectivity": "WiFi 2.4GHz", "Storage": "MicroSD 4GB" }, result: "Berhasil digunakan sebagai sistem keamanan rumah pintar dengan streaming video 720p dan deteksi wajah akurasi 92%.", power: "5V / 480mA", weight: "10g", dimensions: "27 x 40 x 15mm", interface: "WiFi / UART", rating: 85, complexity: 70, scalability: 90, reliability: 88 },
+        { id: 2, name: "GME12864-17", category: "DISPLAY MODULE", thumb: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800", shortDesc: "LCD grafis 128x64 pixel dengan backlight biru untuk menampilkan data dan grafik.", description: "GME12864-17 adalah modul LCD grafis monokrom dengan resolusi 128x64 pixel. Menggunakan driver ST7920 atau KS0108, mampu menampilkan teks, grafik, dan bitmap dengan backlight biru untuk visibilitas di kondisi gelap.", function: "Menampilkan data sensor dalam bentuk teks dan grafik, user interface untuk perangkat IoT, dashboard monitoring.", components: ["LCD 128x64", "Backlight LED", "Driver ST7920", "Pin Header", "Potensiometer Kontras"], specs: { "Resolution": "128x64 pixels", "Display": "Monochrome LCD", "Interface": "Parallel/SPI", "Backlight": "Blue LED", "Voltage": "5V DC" }, result: "Digunakan sebagai display utama pada alat monitoring suhu dengan refresh rate 30fps dan konsumsi daya 0.5W.", power: "5V / 100mA", weight: "45g", dimensions: "93 x 70 x 12mm", interface: "Parallel / SPI", rating: 75, complexity: 40, scalability: 60, reliability: 85 },
+        { id: 3, name: "Micro Servo MG90S", category: "ACTUATOR", thumb: "https://images.unsplash.com/photo-1581092921461-eab62e97a783?auto=format&fit=crop&q=80&w=800", shortDesc: "Servo motor kecil dengan torsi tinggi untuk kontrol presisi posisi sudut.", description: "MG90S adalah micro servo motor dengan gear metal yang menawarkan torsi tinggi dalam ukuran kompak. Motor ini dapat berputar 180 derajat dengan kontrol presisi menggunakan sinyal PWM.", function: "Kontrol posisi presisi untuk lengan robot, mekanisme pan-tilt kamera, sistem katup otomatis, penggerak sendi drone.", components: ["Motor DC", "Gear Metal", "Potensiometer Feedback", "PCB Controller", "Kabel 3-pin"], specs: { "Torque": "2.2kg-cm", "Speed": "0.1s/60", "Weight": "13.4g", "Voltage": "4.8-6V", "Rotation": "180" }, result: "Berhasil diimplementasikan pada lengan robot 4-DOF dengan akurasi posisi 2 derajat dan respons 100ms.", power: "5V / 250mA", weight: "13.4g", dimensions: "23 x 12 x 28mm", interface: "PWM", rating: 88, complexity: 30, scalability: 75, reliability: 90 },
+        { id: 4, name: "GY-GPS6MV2", category: "NAVIGATION", thumb: "https://images.unsplash.com/photo-1534224039826-c7a0eda0e6b3?auto=format&fit=crop&q=80&w=800", shortDesc: "Modul GPS dengan chip U-blox NEO-6M untuk tracking lokasi real-time.", description: "GY-GPS6MV2 adalah modul GPS berbasis chip U-blox NEO-6M yang mampu menerima sinyal dari 22 satelit dengan akurasi 2.5 meter CEP. Dilengkapi dengan EEPROM dan baterai backup untuk cold start cepat.", function: "Sistem tracking kendaraan, navigasi drone, logging jalur perjalanan, geofencing untuk keamanan.", components: ["Chip NEO-6M", "Antena Keramik", "EEPROM Memory", "Battery Backup", "LED Indikator", "Pin Header UART"], specs: { "Channels": "22 Channels", "Accuracy": "2.5m CEP", "Update Rate": "1Hz default", "Interface": "UART 9600bps", "Voltage": "3.3-5V" }, result: "Digunakan pada sistem tracking kendaraan dengan akurasi 3 meter, merekam 10.000 titik koordinat dalam 24 jam.", power: "3.3V / 45mA", weight: "12g", dimensions: "25 x 30 x 8mm", interface: "UART", rating: 82, complexity: 65, scalability: 85, reliability: 80 },
+        { id: 5, name: "ESP32 DevKitV1", category: "MICROCONTROLLER", thumb: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=800", shortDesc: "Board development ESP32 dengan WiFi dan Bluetooth untuk proyek IoT.", description: "ESP32 DevKitV1 adalah board development berbasis chip ESP32-WROOM-32 dengan dual-core processor 240MHz. Dilengkapi WiFi 802.11 b/g/n dan Bluetooth 4.2, memiliki 34 GPIO pins, ADC 12-bit, DAC, SPI, I2C, UART.", function: "Pusat kontrol untuk sistem IoT, gateway komunikasi, data logger cloud, kontrol smart home, prototyping embedded.", components: ["ESP32-WROOM-32", "USB-to-UART Bridge", "Voltage Regulator", "Crystal Oscillator", "Antenna PCB", "Pin Headers"], specs: { "CPU": "Dual-core 240MHz", "RAM": "520KB", "Flash": "4MB", "WiFi": "802.11 b/g/n", "Bluetooth": "4.2 BLE" }, result: "Berhasil sebagai gateway IoT menghubungkan 15 sensor dan 8 aktuator ke cloud dengan latency 50ms dan uptime 99.8%.", power: "5V / 240mA", weight: "10g", dimensions: "51 x 26 x 12mm", interface: "WiFi / BT / GPIO", rating: 95, complexity: 60, scalability: 95, reliability: 92 },
+        { id: 6, name: "R307S", category: "BIOMETRIC SENSOR", thumb: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&q=80&w=800", shortDesc: "Sensor sidik jari optik dengan kapasitas 250 template untuk sistem akses.", description: "R307S adalah modul sensor sidik jari optik dengan resolusi 500 DPI. Mampu menyimpan hingga 250 template sidik jari dengan waktu verifikasi kurang dari 0.5 detik dan FAR 0.001%.", function: "Sistem akses pintu biometrik, absensi karyawan, autentikasi perangkat, sistem keamanan rumah.", components: ["Sensor Optik 500DPI", "DSP Processor", "Flash Memory", "UART Interface", "LED Indikator", "Housing Metal"], specs: { "Resolution": "500 DPI", "Capacity": "250 templates", "Speed": "<0.5s", "FAR": "0.001%", "Interface": "UART 57600bps" }, result: "Diimplementasikan pada sistem absensi 200 karyawan dengan akurasi identifikasi 99.2% dan waktu verifikasi 0.3 detik.", power: "3.3V / 120mA", weight: "55g", dimensions: "22 x 22 x 20mm", interface: "UART", rating: 90, complexity: 75, scalability: 80, reliability: 95 },
+        { id: 7, name: "Arduino Uno R3", category: "MICROCONTROLLER", thumb: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&q=80&w=800", shortDesc: "Board mikrokontroler ATmega328P yang populer untuk pembelajaran dan prototyping.", description: "Arduino Uno R3 adalah board mikrokontroler berbasis ATmega328P dengan 14 digital I/O pins (6 PWM), 6 analog inputs, dan clock 16MHz. Sangat user-friendly dengan IDE mudah dan komunitas besar.", function: "Pembelajaran embedded system, prototyping proyek elektronik, kontrol perangkat sederhana, data logging dasar.", components: ["ATmega328P", "USB-B Connector", "Voltage Regulator 5V", "Crystal 16MHz", "Reset Button", "Power Jack"], specs: { "CPU": "ATmega328P", "Clock": "16MHz", "Flash": "32KB", "SRAM": "2KB", "Voltage": "5V" }, result: "Digunakan sebagai platform pembelajaran untuk 50 mahasiswa dengan 20 proyek berbeda dari LED blinker hingga monitoring suhu.", power: "5V / 200mA", weight: "25g", dimensions: "69 x 53 x 14mm", interface: "USB / GPIO", rating: 92, complexity: 25, scalability: 70, reliability: 95 },
+        { id: 8, name: "Flying Fish", category: "ROBOTICS", thumb: "https://images.unsplash.com/photo-1473968512647-3e447244af8f?auto=format&fit=crop&q=80&w=800", shortDesc: "Drone quadcopter dengan kamera HD untuk fotografi udara dan racing.", description: "Flying Fish adalah drone quadcopter untuk fotografi udara dan FPV racing. Dilengkapi brushless motors, flight controller PID, dan kamera HD 1080p. Waktu terbang 15-20 menit dengan jangkauan 300 meter dan GPS return-to-home.", function: "Fotografi udara, inspeksi infrastruktur, pemetaan area, FPV racing, surveillance keamanan, pertanian presisi.", components: ["Brushless Motors 4x", "ESC 20A", "Flight Controller", "GPS Module", "Kamera HD", "Battery LiPo 3S"], specs: { "Flight Time": "15-20 min", "Range": "300m", "Camera": "1080p HD", "Weight": "450g", "Max Speed": "60km/h" }, result: "Berhasil untuk pemetaan 50 hektar dengan akurasi orthomosaic 5cm/pixel dan waktu pemrosesan 2 jam.", power: "11.1V / 10A", weight: "450g", dimensions: "280 x 280 x 100mm", interface: "RF 2.4GHz", rating: 88, complexity: 90, scalability: 70, reliability: 82 },
+        { id: 9, name: "MH Sensor Series", category: "SENSOR KIT", thumb: "https://images.unsplash.com/photo-1517077304055-6e89abbf09b0?auto=format&fit=crop&q=80&w=800", shortDesc: "Kit sensor lengkap untuk berbagai aplikasi IoT dan embedded system.", description: "MH Sensor Series adalah koleksi modul sensor mencakup suhu, kelembaban, gerak, cahaya, dan gas. Setiap modul dirancang dengan interface mudah dihubungkan ke mikrokontroler, ideal untuk pembelajaran dan prototyping cepat.", function: "Pembelajaran sensor dan aktuator, prototyping proyek IoT, sistem monitoring lingkungan, smart home automation.", components: ["DHT11 Temp/Humidity", "PIR Motion", "LDR Light", "MQ-2 Gas", "Ultrasonic HC-SR04", "Relay Module"], specs: { "Sensors": "10+ types", "Interface": "Digital/Analog", "Voltage": "3.3-5V", "Compatibility": "Arduino/ESP", "Documentation": "Complete" }, result: "Digunakan dalam workshop IoT 30 peserta, berhasil membuat 10 prototipe monitoring lingkungan dalam 2 hari.", power: "5V / 50mA avg", weight: "200g total", dimensions: "Various", interface: "Digital / Analog", rating: 85, complexity: 20, scalability: 85, reliability: 78 },
+        { id: 10, name: "V102", category: "POWER MODULE", thumb: "https://images.unsplash.com/photo-1581092160607-ee226218d553?auto=format&fit=crop&q=80&w=800", shortDesc: "Modul power supply step-down dengan output adjustable untuk proyek elektronik.", description: "V102 adalah modul power supply step-down (buck converter) mengubah tegangan input 4.5-28V menjadi output adjustable 1.25-25V. Menggunakan chip LM2596 dengan efisiensi hingga 92% dan proteksi arus berlebih.", function: "Power supply proyek elektronik, regulator tegangan mikrokontroler, charger baterai, power source motor DC.", components: ["LM2596 IC", "Inductor 33uH", "Capacitor 220uF", "Potensiometer", "Schottky Diode", "Terminal Block"], specs: { "Input": "4.5-28V DC", "Output": "1.25-25V DC", "Max Current": "3A", "Efficiency": "92%", "Ripple": "<30mV" }, result: "Digunakan sebagai power supply sistem IoT dengan 5 sensor dan 3 aktuator, stabilitas tegangan 2% selama 3 bulan.", power: "Input 4.5-28V", weight: "25g", dimensions: "43 x 21 x 14mm", interface: "Terminal Block", rating: 87, complexity: 35, scalability: 80, reliability: 90 },
+        { id: 11, name: "DHT22", category: "TEMPERATURE SENSOR", thumb: "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&q=80&w=800", shortDesc: "Sensor suhu dan kelembaban digital dengan akurasi tinggi untuk monitoring lingkungan.", description: "DHT22 (AM2302) adalah sensor digital suhu dan kelembaban dengan akurasi tinggi. Mampu mengukur suhu -40 hingga 80C dengan akurasi 0.5C dan kelembaban 0-100% RH dengan akurasi 2%. Menggunakan protocol 1-wire.", function: "Monitoring rumah kaca, sistem HVAC smart, weather station, incubator otomatis, monitoring server room.", components: ["NTC Thermistor", "Capacitive Humidity Sensor", "ADC Internal", "1-Wire Interface", "Filter Mesh"], specs: { "Temp Range": "-40 to 80C", "Humidity": "0-100% RH", "Accuracy": "0.5C / 2%", "Resolution": "0.1C / 0.1%", "Sampling": "0.5Hz" }, result: "Diimplementasikan pada monitoring rumah kaca 1000m2 dengan 20 node sensor untuk kontrol irigasi dan ventilasi otomatis.", power: "3.3V / 1.5mA", weight: "4g", dimensions: "15 x 25 x 6mm", interface: "1-Wire Digital", rating: 86, complexity: 20, scalability: 88, reliability: 85 },
+        { id: 12, name: "HC-SR04", category: "DISTANCE SENSOR", thumb: "https://images.unsplash.com/photo-1563770660941-20978e870e26?auto=format&fit=crop&q=80&w=800", shortDesc: "Sensor ultrasonik untuk pengukuran jarak 2cm hingga 400cm dengan akurasi 3mm.", description: "HC-SR04 adalah sensor jarak ultrasonik menggunakan gelombang suara 40kHz untuk mengukur jarak objek. Mampu mendeteksi objek 2cm hingga 400cm dengan akurasi 3mm. Memiliki 4 pin: VCC, Trig, Echo, GND.", function: "Sistem parkir mobil, level monitoring tangki, robot obstacle avoidance, people counter, proximity detection.", components: ["Ultrasonic Transmitter", "Ultrasonic Receiver", "Control Circuit", "Crystal Oscillator 8MHz"], specs: { "Range": "2-400cm", "Accuracy": "3mm", "Frequency": "40kHz", "Angle": "15", "Voltage": "5V DC" }, result: "Digunakan pada sistem parkir otomatis mall dengan 8 sensor, akurasi deteksi kendaraan 98% dan mengurangi waktu parkir 40%.", power: "5V / 15mA", weight: "9g", dimensions: "45 x 20 x 15mm", interface: "Digital Pulse", rating: 80, complexity: 25, scalability: 75, reliability: 82 },
+        { id: 13, name: "NodeMCU ESP8266", category: "WIFI MODULE", thumb: "https://images.unsplash.com/photo-1544724569-5f546fd6f2b5?auto=format&fit=crop&q=80&w=800", shortDesc: "Board WiFi murah dengan ESP8266 untuk proyek IoT sederhana.", description: "NodeMCU ESP8266 adalah board development berbasis chip ESP8266EX dengan WiFi terintegrasi. Memiliki processor 80MHz, 4MB flash, dan 17 GPIO pins. Mendukung Arduino IDE atau Lua script dengan harga sangat terjangkau.", function: "WiFi node sensor network, smart plug, LED controller, data logger cloud, web server embedded, home automation.", components: ["ESP8266EX", "CP2102 USB-UART", "Voltage Regulator 3.3V", "Antenna PCB", "Flash 4MB"], specs: { "CPU": "80MHz", "Flash": "4MB", "WiFi": "802.11 b/g/n", "GPIO": "17 pins", "Voltage": "3.3V" }, result: "Membangun jaringan 50 node sensor suhu di gedung dengan biaya per node Rp 75.000, investasi 60% lebih murah.", power: "3.3V / 180mA", weight: "8g", dimensions: "48 x 25 x 12mm", interface: "WiFi / GPIO", rating: 88, complexity: 45, scalability: 90, reliability: 85 },
+        { id: 14, name: "Raspberry Pi 4", category: "SINGLE BOARD COMPUTER", thumb: "https://images.unsplash.com/photo-1531747640389-68a530b25c78?auto=format&fit=crop&q=80&w=800", shortDesc: "Komputer single-board dengan performa tinggi untuk IoT dan edge computing.", description: "Raspberry Pi 4 adalah single-board computer dengan processor quad-core ARM Cortex-A72 1.5GHz. Tersedia varian RAM 2GB, 4GB, 8GB. Dilengkapi WiFi dual-band, Bluetooth 5.0, Gigabit Ethernet, 2 port HDMI 4K, 4 port USB.", function: "Edge computing AI/ML, home server, media center, IoT gateway canggih, robot controller, platform development.", components: ["BCM2711 SoC", "LPDDR4 RAM", "WiFi/BT Chip", "USB 3.0 Controller", "HDMI 4K Output", "GPIO 40-pin"], specs: { "CPU": "Quad-core 1.5GHz", "RAM": "2/4/8GB", "Storage": "MicroSD/USB", "Video": "2x HDMI 4K", "Network": "Gigabit Ethernet" }, result: "Edge AI gateway untuk 100 kamera CCTV dengan object detection real-time TensorFlow Lite, 30 FPS per stream.", power: "5V / 3A", weight: "46g", dimensions: "85 x 56 x 17mm", interface: "WiFi / BT / Ethernet / GPIO", rating: 96, complexity: 80, scalability: 98, reliability: 94 },
+        { id: 15, name: "Relay Module 4 Channel", category: "SWITCHING MODULE", thumb: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&q=80&w=800", shortDesc: "Modul relay 4 channel untuk kontrol beban AC/DC dari mikrokontroler.", description: "Relay Module 4 Channel adalah modul switching yang memungkinkan mikrokontroler mengontrol beban daya tinggi hingga 10A per channel. Setiap relay memiliki kontak NO dan NC. Dilengkapi optocoupler untuk isolasi dan LED indikator.", function: "Kontrol lampu, motor, solenoid, peralatan AC/DC, sistem otomasi rumah, kontrol irigasi, switching beban industri.", components: ["Relay 12V 10A", "Optocoupler PC817", "Transistor Driver", "Flyback Diode", "LED Indikator", "Terminal Screw"], specs: { "Channels": "4", "Max Current": "10A/channel", "Coil Voltage": "5V/12V", "Contact": "NO/NC", "Isolation": "Optocoupler" }, result: "Smart home kontrol 16 titik lampu dan 4 peralatan AC, respons switching <50ms dan umur >100.000 siklus.", power: "5V / 70mA per ch", weight: "65g", dimensions: "62 x 44 x 19mm", interface: "Digital GPIO", rating: 84, complexity: 30, scalability: 85, reliability: 88 },
+        { id: 16, name: "PIR Motion Sensor", category: "MOTION SENSOR", thumb: "https://images.unsplash.com/photo-1558449028-b53a39d100fc?auto=format&fit=crop&q=80&w=800", shortDesc: "Sensor gerak pasif inframerah untuk deteksi kehadiran manusia.", description: "PIR Motion Sensor mendeteksi gerakan manusia dengan merasakan perubahan radiasi inframerah. Memiliki lensa Fresnel memperluas area deteksi 120 derajat dan jarak 7 meter. Dilengkapi potensiometer untuk pengaturan sensitivitas dan delay time.", function: "Sistem keamanan rumah, lampu otomatis, people counter, alarm intruder, smart lighting, otomatisasi berbasis kehadiran.", components: ["PIR Element RE200B", "Fresnel Lens", "BISS0001 IC", "Potensiometer 2x", "Capacitor Timing"], specs: { "Detection Angle": "120", "Range": "7m", "Delay Time": "0.3-200s", "Voltage": "4.5-20V", "Output": "Digital HIGH/LOW" }, result: "Lampu koridor otomatis gedung 5 lantai dengan 40 sensor, mengurangi konsumsi energi pencahayaan 65%.", power: "5V / 50uA idle", weight: "8g", dimensions: "32 x 24 x 20mm", interface: "Digital Output", rating: 82, complexity: 20, scalability: 80, reliability: 85 },
+        { id: 17, name: "LDR Sensor", category: "LIGHT SENSOR", thumb: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800", shortDesc: "Resistor bergantung cahaya untuk deteksi intensitas cahaya lingkungan.", description: "LDR (Light Dependent Resistor) atau photoresistor adalah komponen yang resistansinya berubah sesuai intensitas cahaya. Dalam gelap resistansi 1M, di cahaya terang turun menjadi 100. Mudah diinterface dengan mikrokontroler menggunakan voltage divider.", function: "Sistem lampu otomatis, light meter, solar tracker, night light, monitoring cahaya tanaman, deteksi terang/gelap.", components: ["CdS Photoresistor", "Resistor 10K", "PCB Board", "Pin Header"], specs: { "Dark Resistance": "1M", "Light Resistance": "100", "Response Time": "20ms", "Spectrum": "540nm peak", "Voltage": "3.3-5V" }, result: "Solar tracker dual-axis dengan 4 LDR sebagai sensor, meningkatkan efisiensi panel surya 25% dibanding fixed-tilt.", power: "Passive", weight: "2g", dimensions: "10 x 10 x 5mm", interface: "Analog", rating: 70, complexity: 10, scalability: 65, reliability: 75 },
+        { id: 18, name: "MQ-2 Gas Sensor", category: "GAS SENSOR", thumb: "https://images.unsplash.com/photo-1581092921461-eab62e97a783?auto=format&fit=crop&q=80&w=800", shortDesc: "Sensor gas untuk deteksi LPG, metana, propane, dan gas mudah terbakar lainnya.", description: "MQ-2 adalah sensor gas semikonduktor yang sensitif terhadap LPG, i-butane, methane, propane, alcohol, hydrogen, dan smoke. Memiliki masa pakai lebih dari 5 tahun dengan waktu respons cepat dan sensitivitas tinggi terhadap berbagai gas.", function: "Detektor kebocoran gas rumah tangga, monitoring kualitas udara industri, sistem alarm kebakaran, deteksi polusi udara.", components: ["SnO2 Sensing Layer", "Heater Coil", "Mesh Shield", "Load Resistor", "Pin Header 4-pin"], specs: { "Detection": "LPG, CH4, CO, Alcohol", "Range": "300-10000ppm", "Heat-up": "<2 minutes", "Voltage": "5V DC", "Lifespan": ">5 years" }, result: "Sistem deteksi kebocoran gas LPG pada 50 rumah dengan alert SMS, respon deteksi <10 detik dan zero false alarm.", power: "5V / 800mA", weight: "14g", dimensions: "35 x 35 x 28mm", interface: "Analog / Digital", rating: 83, complexity: 40, scalability: 78, reliability: 80 }
+    ];
+
+    const grid = document.getElementById('iot-grid');
+    const detailPage = document.getElementById('detail-page');
+    const detailContent = document.getElementById('detail-content');
+    const listPage = document.getElementById('list-page');
+    const deviceCount = document.getElementById('device-count');
+
+    function renderGrid() {
+        grid.innerHTML = '';
+        deviceCount.textContent = String(iotData.length).padStart(2, '0');
+        iotData.forEach((device, i) => {
+            const num = String(i + 1).padStart(2, '0');
+            const card = document.createElement('div');
+            card.className = 'iot-card reveal';
+            card.style.transitionDelay = `${i * 0.05}s`;
+            card.onclick = () => openDetail(device.id);
+            card.innerHTML = `
+                <div class="iot-card-header">
+                    <span class="iot-num">UNIT ${num}</span>
+                    <span class="iot-tag">${device.category}</span>
+                </div>
+                <div>
+                    <div class="iot-name">${device.name}</div>
+                    <div class="iot-desc">${device.shortDesc}</div>
+                </div>
+                <div class="iot-arrow"><i class="fa-solid fa-arrow-up-right"></i></div>
+            `;
+            grid.appendChild(card);
+        });
+        observeReveal();
+    }
+
+    function openDetail(id) {
+        const device = iotData.find(d => d.id === id);
+        if (!device) return;
+
+        let compHtml = '';
+        device.components.forEach(c => { compHtml += `<div class="comp-item"><i class="fa-solid fa-check"></i> ${c}</div>`; });
+
+        let specHtml = '';
+        Object.entries(device.specs).forEach(([key, val]) => {
+            specHtml += `<li class="spec-item"><span class="spec-key">${key}</span><span class="spec-val">${val}</span></li>`;
+        });
+
+        const relatedDevices = iotData.filter(d => d.id !== device.id && d.category === device.category).slice(0, 3);
+        const fallbackDevices = iotData.filter(d => d.id !== device.id).slice(0, 3);
+        const finalRelated = relatedDevices.length >= 3 ? relatedDevices : [...relatedDevices, ...fallbackDevices].slice(0, 3);
+
+        let relatedHtml = '';
+        finalRelated.forEach(d => {
+            const num = String(d.id).padStart(2, '0');
+            relatedHtml += `
+                <div class="related-card" onclick="openDetail(${d.id})">
+                    <div class="iot-num">UNIT ${num}</div>
+                    <div class="iot-name">${d.name}</div>
+                    <span class="iot-tag">${d.category}</span>
+                    <div class="iot-arrow"><i class="fa-solid fa-arrow-up-right"></i></div>
+                </div>
+            `;
+        });
+
+        detailContent.innerHTML = `
+            <div class="detail-hero reveal">
+                <div class="detail-hero-img">
+                    <img src="${device.thumb}" alt="${device.name}">
+                </div>
+                <div class="detail-hero-info">
+                    <div class="marker">UNIT ${String(device.id).padStart(2, '0')} // ${device.category}</div>
+                    <h1>${device.name}</h1>
+                    <p class="detail-text">${device.shortDesc}</p>
+                </div>
+            </div>
+
+            <div class="metrics-grid reveal">
+                <div class="metric-card">
+                    <div class="metric-label">RATING PERFORMA</div>
+                    <div class="metric-value">${device.rating}<span style="font-size: 0.9rem; color: var(--text-secondary);">/100</span></div>
+                    <div class="metric-bar" style="--fill: ${device.rating}%"></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">TINGKAT KOMPLEKSITAS</div>
+                    <div class="metric-value">${device.complexity}<span style="font-size: 0.9rem; color: var(--text-secondary);">%</span></div>
+                    <div class="metric-bar" style="--fill: ${device.complexity}%"></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">SKALABILITAS</div>
+                    <div class="metric-value">${device.scalability}<span style="font-size: 0.9rem; color: var(--text-secondary);">%</span></div>
+                    <div class="metric-bar" style="--fill: ${device.scalability}%"></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">RELIABILITAS</div>
+                    <div class="metric-value">${device.reliability}<span style="font-size: 0.9rem; color: var(--text-secondary);">%</span></div>
+                    <div class="metric-bar" style="--fill: ${device.reliability}%"></div>
+                </div>
+            </div>
+
+            <div class="detail-content">
+                <div class="detail-main">
+                    <div class="detail-section reveal">
+                        <div class="detail-label">DESKRIPSI SISTEM</div>
+                        <p class="detail-text">${device.description}</p>
+                    </div>
+                    <div class="detail-section reveal">
+                        <div class="detail-label">FUNGSI OPERASIONAL</div>
+                        <p class="detail-text">${device.function}</p>
+                    </div>
+                    <div class="detail-section reveal">
+                        <div class="detail-label">KOMPONEN HARDWARE</div>
+                        <div class="comp-grid">${compHtml}</div>
+                    </div>
+                    <div class="detail-section reveal">
+                        <div class="detail-label">HASIL IMPLEMENTASI</div>
+                        <div class="result-box">${device.result}</div>
+                    </div>
+
+                    <div class="related-section reveal">
+                        <div class="detail-label">PERANGKAT TERKAIT</div>
+                        <div class="related-grid">${relatedHtml}</div>
+                    </div>
+                </div>
+                <div class="detail-sidebar reveal">
+                    <div class="detail-section">
+                        <div class="detail-label">SPESIFIKASI TEKNIS</div>
+                        <ul class="spec-list">${specHtml}</ul>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">INFORMASI FISIK</div>
+                        <ul class="spec-list">
+                            <li class="spec-item"><span class="spec-key">POWER</span><span class="spec-val">${device.power}</span></li>
+                            <li class="spec-item"><span class="spec-key">WEIGHT</span><span class="spec-val">${device.weight}</span></li>
+                            <li class="spec-item"><span class="spec-key">DIMENSIONS</span><span class="spec-val">${device.dimensions}</span></li>
+                            <li class="spec-item"><span class="spec-key">INTERFACE</span><span class="spec-val">${device.interface}</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        listPage.style.display = 'none';
+        detailPage.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(observeReveal, 100);
+    }
+
+    function showList() {
+        detailPage.classList.remove('active');
+        listPage.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(observeReveal, 100);
+    }
+
+    function observeReveal() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    }
+
+    window.showList = showList;
+    window.openDetail = openDetail;
+
+    const sessionId = 'sys-' + Math.random().toString(36).substring(2, 9);
+    const terminalWindow = document.getElementById('terminal-window');
+    const terminalMessages = document.getElementById('terminal-messages');
+    const terminalInput = document.getElementById('terminal-input');
+    const terminalSend = document.getElementById('terminal-send');
+
+    function toggleTerminal() {
+        terminalWindow.classList.toggle('active');
+        if (terminalWindow.classList.contains('active')) {
+            setTimeout(() => terminalInput.focus(), 300);
+        }
+    }
+    window.toggleTerminal = toggleTerminal;
+
+    function appendMsg(role, text) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `t-msg ${role}`;
+        msgDiv.textContent = text;
+        terminalMessages.appendChild(msgDiv);
+        terminalMessages.scrollTop = terminalMessages.scrollHeight;
+        return msgDiv;
+    }
+
+    async function sendQuery() {
+        const text = terminalInput.value.trim();
+        if (!text) return;
+
+        appendMsg('user', text);
+        terminalInput.value = '';
+        terminalSend.disabled = true;
+
+        const loadingMsg = appendMsg('sys', 'Memproses query...');
+
+        const prompt = `Anda adalah sistem query IoT Galaxy. Jawab dengan singkat, padat, profesional, dan teknis. Tanpa emoji. Tanpa basa-basi. Hanya fakta tentang perangkat IoT, komponen, dan spesifikasi. Jika di luar topik, tolak dengan: 'Query ditolak. Hanya topik IoT yang diproses.' Pertanyaan: ${text}`;
+
+        try {
+            const response = await fetch(`https://api-synhs.my.id/api/ai/jailbreakai?prompt=${encodeURIComponent(prompt)}&session=${sessionId}`);
+            const data = await response.json();
+            loadingMsg.remove();
+
+            if (data.status && data.data && data.data.response) {
+                appendMsg('sys', data.data.response);
+            } else {
+                appendMsg('sys', 'Error: Gagal mengambil data dari server.');
+            }
+        } catch (error) {
+            loadingMsg.remove();
+            appendMsg('sys', 'Error: Koneksi jaringan terputus.');
+        } finally {
+            terminalSend.disabled = false;
+            terminalInput.focus();
+        }
+    }
+    window.sendQuery = sendQuery;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderGrid();
+        observeReveal();
+    });
+</script>
+
+<script>
+    try {
+        if (typeof THREE === 'undefined') throw new Error('THREE not loaded');
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(-6, 5, 6);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const coreGeometry = new THREE.SphereGeometry(1, 64, 64);
+        const coreMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const core = new THREE.Mesh(coreGeometry, coreMaterial);
+        scene.add(core);
+
+        const diskGeometry = new THREE.RingGeometry(1.1, 4.5, 128, 1);
+        const diskMaterial = new THREE.ShaderMaterial({
+            uniforms: { uTime: { value: 0 } },
+            vertexShader: `
+                varying vec3 vPos;
+                void main() {
+                    vPos = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float uTime;
+                varying vec3 vPos;
+                void main() {
+                    float r = length(vPos.xy);
+                    float theta = atan(vPos.y, vPos.x);
+                    float noise = sin(theta * 15.0 + r * 8.0 - uTime * 1.5) * 0.5 + 0.5;
+                    float noise2 = sin(theta * 8.0 - r * 5.0 + uTime * 0.8) * 0.5 + 0.5;
+                    float intensity = smoothstep(1.1, 1.4, r) * smoothstep(4.5, 2.0, r);
+                    intensity *= (noise * 0.7 + noise2 * 0.3);
+                    vec3 colorInner = vec3(0.4, 0.1, 0.6);
+                    vec3 colorOuter = vec3(0.0, 0.6, 0.7);
+                    vec3 finalColor = mix(colorInner, colorOuter, smoothstep(1.1, 4.5, r));
+                    gl_FragColor = vec4(finalColor, intensity * 0.7);
+                }
+            `,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
+        const disk = new THREE.Mesh(diskGeometry, diskMaterial);
+        disk.rotation.x = Math.PI / 2.2;
+        scene.add(disk);
+
+        const haloGeometry = new THREE.SphereGeometry(1.15, 64, 64);
+        const haloMaterial = new THREE.ShaderMaterial({
+            uniforms: { viewVector: { value: camera.position } },
+            vertexShader: `
+                uniform vec3 viewVector;
+                varying float intensity;
+                void main() {
+                    vec3 vNormal = normalize(normalMatrix * normal);
+                    vec3 vNormel = normalize(normalMatrix * viewVector);
+                    intensity = pow(0.7 - dot(vNormal, vNormel), 3.0);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying float intensity;
+                void main() {
+                    vec3 glow = vec3(0.4, 0.2, 0.7) * intensity;
+                    gl_FragColor = vec4(glow, intensity * 0.8);
+                }
+            `,
+            side: THREE.BackSide,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
+        const halo = new THREE.Mesh(haloGeometry, haloMaterial);
+        scene.add(halo);
+
+        const starCount = 1500;
+        const starsGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount * 3; i++) {
+            starPositions[i] = (Math.random() - 0.5) * 40;
+        }
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.03, transparent: true, opacity: 0.6 });
+        const starField = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(starField);
+
+        let mouseX = 0, mouseY = 0;
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsedTime = clock.getElapsedTime();
+            
+            diskMaterial.uniforms.uTime.value = elapsedTime;
+            haloMaterial.uniforms.viewVector.value = camera.position;
+            
+            disk.rotation.z = elapsedTime * 0.1;
+            starField.rotation.y = elapsedTime * 0.02;
+            
+            const targetX = -6 + (mouseX * 6);
+            const targetY = 5 + (mouseY * 4);
+            const targetZ = 6 + (mouseY * 2);
+            
+            camera.position.x += (targetX - camera.position.x) * 0.05;
+            camera.position.y += (targetY - camera.position.y) * 0.05;
+            camera.position.z += (targetZ - camera.position.z) * 0.05;
+            camera.lookAt(0, 0, 0);
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    } catch (e) {
+        console.warn('Black hole init failed:', e);
+    }
+</script>
+</body>
+</html>
